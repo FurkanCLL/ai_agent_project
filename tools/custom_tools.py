@@ -1,4 +1,5 @@
 import os
+import platform
 from .base import BaseTool
 
 
@@ -38,4 +39,31 @@ class FileReadTool(BaseTool):
                 }
             },
             "required": ["file_path"]
+        }
+
+class SystemInfoTool(BaseTool):
+    """
+    A custom tool to retrieve basic information about the host system.
+    """
+    @property
+    def name(self) -> str:
+        return "get_system_info"
+
+    @property
+    def description(self) -> str:
+        return "Returns basic system information like OS, processor, and architecture."
+
+    def execute(self, **kwargs):
+        info = {
+            "OS": platform.system(),
+            "Release": platform.release(),
+            "Architecture": platform.machine(),
+            "Processor": platform.processor()
+        }
+        return f"System Information: {info}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "OBJECT",
+            "properties": {}
         }
