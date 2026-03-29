@@ -17,5 +17,5 @@ A modular, Python-based AI agent architecture. This project implements custom ex
 
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/FurkanCLL/ai_agent_project.git](https://github.com/FurkanCLL/ai_agent_project.git)
+   git clone https://github.com/FurkanCLL/ai_agent_project.git
    cd ai_agent_project
