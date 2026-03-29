@@ -1,4 +1,5 @@
 from .base import BaseTool
+from datetime import datetime
 
 
 class CalculatorTool(BaseTool):
@@ -40,4 +41,27 @@ class CalculatorTool(BaseTool):
                 }
             },
             "required": ["expression"]
+        }
+
+class ClockTool(BaseTool):
+    """
+    A simple tool to get the current date and time.
+    """
+    @property
+    def name(self) -> str:
+        return "get_time"
+
+    @property
+    def description(self) -> str:
+        return "Returns the current date and time. Use this when the user asks for the time."
+
+    def execute(self, **kwargs):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return f"The current date and time is {now}"
+
+    def get_parameters_schema(self):
+        # This tool doesn't need any input parameters
+        return {
+            "type": "OBJECT",
+            "properties": {}
         }
