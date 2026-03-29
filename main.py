@@ -1,36 +1,39 @@
-import os
-from dotenv import load_dotenv
-from google import genai
-
-# Standard way to load environment variables
-load_dotenv()
+from core.registry import ToolRegistry
+from tools.simple_tools import CalculatorTool
+from tools.custom_tools import FileReadTool
 
 
-def test_api_connection():
-    api_key = os.getenv("GEMINI_API_KEY")
+def test_system_components():
+    print("--- Starting Component Tests ---")
 
-    if not api_key:
-        print("Missing API Key. Did you create the .env file?")
-        return
+    # 1. Initialize Registry
+    registry = ToolRegistry()
 
-    client = genai.Client(api_key=api_key)
+    # 2. Register our tools
+    registry.register_tool(CalculatorTool())
+    registry.register_tool(FileReadTool())
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents="Hello! Testing the connection again."
-        )
+    print(f"Registered tools: {registry.tool_names}")
 
-        if response.text:
-            print("-" * 30)
-            print("Gemini Response:", response.text)
-            print("-" * 30)
-            print("Success: The connection is working now!")
+    # 3. Test Calculator
+    print("\nTesting Calculator...")
+    calc_result = registry.execute_tool("calculator", expression="15 * 4 + 10")
+    print(f"Result: {calc_result}")
 
-    except Exception as e:
-        print(f"Still having issues: {e}")
+    # 4. Test File Reader (Let's create a dummy file first)
+    print("\nTesting File Reader...")
+    with open("test_note.txt", "w") as f:
+        f.write("This is a secret note for the AI agent.")
+
+    file_result = registry.execute_tool("read_file", file_path="test_note.txt")
+    print(f"File content: {file_result}")
+
+    # 5. Check JSON Declarations (What Gemini will see)
+    print("\nChecking tool schemas for Gemini:")
+    schemas = registry.get_all_declarations()
+    for schema in schemas:
+        print(f"- Tool: {schema['name']} is ready.")
 
 
 if __name__ == "__main__":
-    print("Starting API connection test...")
-    test_api_connection()
+    test_system_components()
