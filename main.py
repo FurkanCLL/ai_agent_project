@@ -1,39 +1,68 @@
+import os
+import sys
+from dotenv import load_dotenv
+
+# Importing our core components
+from core.agent import GeminiAgent
 from core.registry import ToolRegistry
-from tools.simple_tools import CalculatorTool
-from tools.custom_tools import FileReadTool
+from core.memory import MemoryManager
+
+# Importing our tools
+from tools.simple_tools import CalculatorTool, ClockTool
+from tools.custom_tools import FileReadTool, SystemInfoTool
 
 
-def test_system_components():
-    print("--- Starting Component Tests ---")
+def main():
+    # Load the API Key from .env
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
 
-    # 1. Initialize Registry
+    if not api_key:
+        print("Error: Please set GEMINI_API_KEY in your .env file.")
+        sys.exit(1)
+
+    # Setup the Tool Registry and register all tools
+    # This follows the Factory/Registry pattern
     registry = ToolRegistry()
-
-    # 2. Register our tools
     registry.register_tool(CalculatorTool())
+    registry.register_tool(ClockTool())
     registry.register_tool(FileReadTool())
+    registry.register_tool(SystemInfoTool())
 
-    print(f"Registered tools: {registry.tool_names}")
+    # Initialize the Agent
+    # We use the successful model we tested before
+    agent = GeminiAgent(
+        api_key=api_key,
+        registry=registry,
+        model_name="gemini-2.0-flash-lite"
+    )
 
-    # 3. Test Calculator
-    print("\nTesting Calculator...")
-    calc_result = registry.execute_tool("calculator", expression="15 * 4 + 10")
-    print(f"Result: {calc_result}")
+    print("--- Digital Assistant is Online ---")
+    print("Type 'quit' or 'exit' to end the session.\n")
 
-    # 4. Test File Reader (Let's create a dummy file first)
-    print("\nTesting File Reader...")
-    with open("test_note.txt", "w") as f:
-        f.write("This is a secret note for the AI agent.")
+    # Main CLI Chat Loop
+    while True:
+        try:
+            user_input = input("You: ").strip()
 
-    file_result = registry.execute_tool("read_file", file_path="test_note.txt")
-    print(f"File content: {file_result}")
+            if user_input.lower() in ['quit', 'exit']:
+                print("Goodbye!")
+                break
 
-    # 5. Check JSON Declarations (What Gemini will see)
-    print("\nChecking tool schemas for Gemini:")
-    schemas = registry.get_all_declarations()
-    for schema in schemas:
-        print(f"- Tool: {schema['name']} is ready.")
+            if not user_input:
+                continue
+
+            # Run the agent (Reason -> Act -> Observe loop happens inside)
+            response = agent.run(user_input)
+
+            print(f"\nAssistant: {response}\n")
+
+        except KeyboardInterrupt:
+            print("\nSession ended by user.")
+            break
+        except Exception as e:
+            print(f"\nAn unexpected error occurred: {e}")
 
 
 if __name__ == "__main__":
-    test_system_components()
+    main()
