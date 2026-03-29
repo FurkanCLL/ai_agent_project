@@ -5,78 +5,68 @@ from .memory import MemoryManager
 
 
 class GeminiAgent:
-    """
-    The core Agent class that implements the ReAct loop.
-    It reasons using Gemini and acts using the ToolRegistry.
-    """
-
-    def __init__(self, api_key: str, registry: ToolRegistry, model_name: str = "gemini-2.0-flash-lite"):
+    def __init__(self, api_key: str, registry: ToolRegistry, model_name: str = "gemini-2.5-flash-lite"):
         self.client = genai.Client(api_key=api_key)
         self.registry = registry
         self.memory = MemoryManager()
         self.model_name = model_name
 
     def run(self, user_input: str):
-        """
-        Main entry point for a chat turn. Implements the Reason -> Act -> Observe loop.
-        """
-        # 1. Remember what the user said
+        # Add user input to memory
         self.memory.add_user_message(user_input)
 
-        # Allow the agent to loop a few times if it needs multiple tools
         max_iterations = 5
-
         for i in range(max_iterations):
-            # Prepare the tools declaration for Gemini
-            tools_list = self.registry.get_all_declarations()
+            all_tools = self.registry.get_all_declarations()
+            tools_config = [types.Tool(function_declarations=all_tools)]
 
-            # 2. REASON: Ask Gemini what to do next
-            # Pass the entire conversation history
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=self.memory.get_history(),
                 config=types.GenerateContentConfig(
-                    tools=tools_list,
-                    system_instruction="You are a helpful assistant. Use tools when needed."
+                    tools=tools_config,
+                    system_instruction="You are a helpful assistant. Use tools if necessary."
                 )
             )
 
-            # Get the first candidate's response
-            response_content = response.candidates[0].content
+            candidate_content = response.candidates[0].content
 
-            # Check if Gemini wants to call a tool (Function Calling)
-            tool_calls = [part.func_call for part in response_content.parts if part.func_call]
+            parts = candidate_content.parts if candidate_content.parts else []
+            tool_calls = [part.function_call for part in parts if part.function_call]
 
+            # If no tools are called, return the final response
             if not tool_calls:
-                # No tool calls? Then Gemini has a final answer for us.
-                final_text = response.text
+                final_text = response.text if response.text else "Process complete."
                 self.memory.add_model_message(final_text)
                 return final_text
 
-            # 3. ACT: Gemini decided to use one or more tools
-            # Must handle each tool call and collect results
-            for tool_call in tool_calls:
-                print(f"  [Agent is thinking...] Calling tool: {tool_call.name}")
+            # Record model's thought process
+            self.memory.history.append(candidate_content)
 
-                # Execute the tool via our Registry
+            for tool_call in tool_calls:
+                print(f"  [System] Executing: {tool_call.name}")
+
+                # Strict type check for tool arguments
+                # If the API sends None or a weird object, we force it to be an empty dict
+                safe_args = tool_call.args if isinstance(tool_call.args, dict) else {}
+
                 observation = self.registry.execute_tool(
                     tool_name=tool_call.name,
-                    **tool_call.args
+                    **safe_args
                 )
 
-                # 4. OBSERVE: We add the tool result back to memory
-                # In Gemini API, tool results must be sent back as a 'function_response'
-                self.memory.history.append({
-                    "role": "user",  # Technically 'tool' role, but we follow the SDK's history format
-                    "parts": [
-                        types.Part.from_function_response(
-                            name=tool_call.name,
-                            response={"result": observation}
+                # Format the result for Gemini
+                tool_response_content = types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=tool_call.name,
+                                response={"result": str(observation)}
+                            )
                         )
                     ]
-                })
+                )
+                self.memory.history.append(tool_response_content)
 
-            # After adding tool results to memory, the loop continues
-            # to let Gemini 'Reason' about the results and give a final answer.
-
-        return "I'm sorry, I reached my maximum reasoning steps without a final answer."
+        return "Thinking limit reached."
